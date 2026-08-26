@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>SplitShot</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="robots" content="noindex, nofollow">
+<style>
+:root{--bg:#f8f7f5;--surface:#fff;--line:rgba(20,20,24,.10);--text:#17171a;--muted:#77777e;--accent:#ff4f87;--accent-soft:rgba(255,79,135,.12)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100dvh;overflow-x:hidden;background:radial-gradient(ellipse 70% 55% at 18% 18%,rgba(255,79,135,.10),transparent 62%),radial-gradient(ellipse 65% 55% at 84% 78%,rgba(124,92,255,.075),transparent 62%),linear-gradient(135deg,#fbfaf9 0%,#f7f7f8 52%,#f8f7fa 100%)}
+button,input{font-family:inherit}button{cursor:pointer}.hidden{display:none!important}
+#app{min-height:100dvh;display:flex;flex-direction:column}
+#stage{flex:1;width:100%;max-width:680px;margin:0 auto;padding:20px 20px 150px}
+.empty-state{min-height:calc(100dvh - 40px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 0 20px}
+.empty-state h1{
+margin:0 0 38px;
+position:relative;
+display:inline-block;
+color:var(--text);
+font-family:"DM Serif Display",Georgia,serif;
+font-size:clamp(58px,15vw,94px);
+font-weight:400;
+font-style:normal;
+letter-spacing:-.045em;
+line-height:.9;
+transform:none;
+white-space:nowrap;
+text-shadow:0 1px 0 rgba(255,255,255,.8);
+}
+
+.empty-state h1 .logo-split,
+.empty-state h1 .logo-shot{
+font-weight:400;
+letter-spacing:-.045em;
+}
+.empty-state #pickBtn{order:2}
+.btn-primary,.btn-secondary,.btn-ghost{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;font-weight:700;transition:transform .15s,box-shadow .15s,background .15s}
+.btn-primary{min-width:210px;min-height:58px;padding:17px 32px;background:var(--accent);color:#fff;border:1px solid var(--accent);font-size:15px;letter-spacing:.01em;box-shadow:0 10px 28px rgba(255,79,135,.20)}
+.btn-primary:hover{background:#f5447e;box-shadow:0 12px 32px rgba(255,79,135,.25);transform:translateY(-1px)}
+.btn-primary:active,.btn-secondary:active,.btn-ghost:active{transform:scale(.98)}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--line);font-size:14px;padding:14px 20px}
+.btn-ghost{background:rgba(255,255,255,.7);color:var(--muted);border:1px solid var(--line);padding:9px 13px;font-size:12.5px}
+.link-btn{background:none;border:0;color:var(--muted);font-size:12px;font-weight:600;padding:6px 0;display:inline-flex;align-items:center;gap:6px}
+.workspace{display:flex;flex-direction:column;gap:14px}
+.canvas-wrap{position:relative;width:100%;border-radius:20px;overflow:hidden;background:#eee;border:1px solid var(--line);box-shadow:0 10px 35px rgba(30,30,35,.07)}
+#previewCanvas{display:block;width:100%;height:auto}.cut-overlay{position:absolute;inset:0;pointer-events:none}
+.cut-line{position:absolute;box-shadow:0 0 12px rgba(255,79,135,.55);transition:transform .35s ease,opacity .3s ease}
+.cut-line.h{height:2px;left:0;right:0;transform:scaleX(0);background:var(--accent)}.cut-line.v{width:2px;top:0;bottom:0;transform:scaleY(0);background:var(--accent)}
+.cut-line.on.h{transform:scaleX(1)}.cut-line.on.v{transform:scaleY(1)}
+.tile-badge{position:absolute;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.9);border:1px solid rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text);top:8px;left:8px;opacity:0;transition:opacity .3s ease .2s}.tile-badge.on{opacity:1}
+.filter-strip{background:rgba(255,255,255,.78);border:1px solid var(--line);border-radius:14px;padding:13px 14px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.filter-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.section-label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chips{display:flex;gap:7px;overflow-x:auto;padding:1px 0 2px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;padding:8px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.8);color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap}.chip.active{background:var(--text);color:#fff;border-color:var(--text)}
+.adjust-panel{display:flex;flex-direction:column;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}.adjust-panel label{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}.adjust-panel input[type=range]{flex:1;accent-color:var(--accent)}
+.tiles-strip{display:flex;gap:8px;overflow-x:auto;padding:2px 1px 8px;scrollbar-width:none}.tiles-strip::-webkit-scrollbar{display:none}.tile-thumb{flex:0 0 auto;border-radius:10px;border:1px solid var(--line);overflow:hidden;height:82px;background:#eee}.tile-thumb canvas{height:100%;display:block}
+.footer{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:0 10px calc(10px + env(safe-area-inset-bottom));pointer-events:none}.footer-inner{pointer-events:auto;width:100%;max-width:620px;background:rgba(255,255,255,.95);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:17px;padding:13px 13px 11px;box-shadow:0 -8px 30px rgba(0,0,0,.06);animation:rise .22s ease}@keyframes rise{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+.footer-label{margin:0 0 8px;font-size:12px;font-weight:700;color:var(--text)}.split-options{display:flex;gap:7px;overflow-x:auto;padding:4px 2px 3px;scrollbar-width:none}.split-options::-webkit-scrollbar{display:none}
+.split-pill{position:relative;display:flex;flex:0 0 auto;flex-direction:column;align-items:center;justify-content:center;width:64px;height:60px;border-radius:12px;border:1px solid var(--line);background:var(--surface);padding:0}.split-pill.recommended{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.split-pill .badge{position:absolute;top:-7px;left:50%;transform:translateX(-50%);font-size:8px;font-weight:700;background:var(--accent);color:#fff;padding:2px 6px;border-radius:999px;white-space:nowrap}
+.split-visual{display:grid;background:#d7d9dd;border-radius:4px;overflow:hidden}.split-visual .cell{background:#fff}
+.custom-row{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}.stepper{display:flex;align-items:center;gap:7px;background:#f5f5f6;border:1px solid var(--line);border-radius:10px;padding:6px 8px}.stepper button{width:25px;height:25px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--text);font-size:15px;line-height:1}.stepper .val{font-weight:700;font-size:14px;min-width:15px;text-align:center}
+.current-split{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}.current-split .name{display:flex;align-items:center;gap:9px}.current-split .name .split-visual{width:30px;height:23px}.current-split .name .lbl{font-size:13px;font-weight:700;color:var(--text)}
+.actions-row{display:flex;gap:8px;margin-bottom:8px}#captionInput{flex:1;background:#f5f5f6;border:1px solid var(--line);border-radius:11px;padding:11px 12px;color:var(--text);font-size:13px;outline:none}#captionInput::placeholder{color:#a0a2a7}.main-actions{margin-bottom:0}.main-actions button{flex:1}#btnShare{background:var(--text);color:#fff;border-color:var(--text);box-shadow:none}.status-msg{font-size:11px;color:var(--muted);margin-top:6px;text-align:center;min-height:15px}
+@media(max-width:420px){#stage{padding-left:14px;padding-right:14px}.empty-state h1{font-size:62px}.footer{padding-left:7px;padding-right:7px}}
+</style>
+</head>
+<body>
+<div id="app">
+<main id="stage">
+<div id="emptyState" class="empty-state">
+<h1 aria-label="SplitShot"><span class="logo-split">Split</span><span class="logo-shot">Shot</span></h1>
+<button id="pickBtn" class="btn-primary">画像を選ぶ</button>
+<input type="file" id="fileInput" accept="image/*" hidden>
+</div>
+<div id="workspace" class="workspace hidden">
+<div class="canvas-wrap"><canvas id="previewCanvas"></canvas><div class="cut-overlay" id="cutOverlay"></div></div>
+<div class="filter-strip">
+<div class="filter-head"><span class="section-label">Filter</span><button class="link-btn" id="toggleAdjust">調整</button></div>
+<div class="chips" id="presetChips"></div>
+<div class="adjust-panel hidden" id="adjustPanel">
+<label>明るさ <input type="range" id="rangeBrightness" min="50" max="150" value="100"></label>
+<label>コントラスト <input type="range" id="rangeContrast" min="50" max="150" value="100"></label>
+<label>彩度 <input type="range" id="rangeSaturate" min="0" max="200" value="100"></label>
+</div>
+</div>
+<div class="tiles-strip hidden" id="tilesStrip"></div>
+</div>
+</main>
+<div class="footer hidden" id="footer">
+<div class="footer-inner" id="footerSuggest">
+<p class="footer-label">分割方法 <span style="font-weight:500;color:var(--muted)">— 3分割がおすすめ</span></p>
+<div class="split-options" id="splitOptions"></div>
+<div class="custom-row hidden" id="customRow">
+<div class="stepper"><button data-c="rowsMinus">−</button><span class="val" id="customRowsVal">1</span><button data-c="rowsPlus">＋</button></div>
+<div class="stepper"><button data-c="colsMinus">−</button><span class="val" id="customColsVal">3</span><button data-c="colsPlus">＋</button></div>
+<button class="btn-primary" id="customApply" style="min-width:auto;min-height:auto;padding:13px 20px;font-size:14px">分割する</button>
+</div>
+</div>
+<div class="footer-inner hidden" id="footerActions">
+<div class="current-split"><div class="name"><div class="split-visual" id="currentSplitVisual"></div><span class="lbl" id="currentSplitLabel"></span></div><button class="btn-ghost" id="btnChange">変える</button></div>
+<div class="actions-row"><input type="text" id="captionInput" placeholder="キャプション（任意）"></div>
+<div class="actions-row main-actions"><button class="btn-secondary" id="btnSave">保存</button><button class="btn-primary" id="btnShare">Xにポスト</button></div>
+<div class="status-msg" id="statusMsg"></div>
+</div>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+const MAX_DIM=1800;
+const SPLITS=[
+{id:"h2",label:"横に2分割",rows:1,cols:2},{id:"h3",label:"横に3分割",rows:1,cols:3},
+{id:"h4",label:"横に4分割",rows:1,cols:4},{id:"v2",label:"縦に2分割",rows:2,cols:1},
+{id:"v3",label:"縦に3分割",rows:3,cols:1},{id:"g22",label:"2×2グリッド",rows:2,cols:2},
+{id:"g33",label:"3×3グリッド",rows:3,cols:3},{id:"custom",label:"カスタム",rows:null,cols:null}];
+const PRESETS=[
+{id:"none",label:"なし",brightness:100,contrast:100,saturate:100,extra:""},
+{id:"mono",label:"モノクロ",brightness:104,contrast:112,saturate:0,extra:""},
+{id:"sepia",label:"セピア",brightness:102,contrast:104,saturate:88,extra:"sepia(.55)"},
+{id:"vivid",label:"ビビッド",brightness:104,contrast:114,saturate:150,extra:""},
+{id:"soft",label:"ソフト",brightness:108,contrast:92,saturate:96,extra:""},
+{id:"cool",label:"クール",brightness:101,contrast:106,saturate:106,extra:"hue-rotate(-8deg)"},
+{id:"film",label:"フィルム",brightness:98,contrast:109,saturate:85,extra:"sepia(.15)"}];
+const el=id=>document.getElementById(id);
+const state={srcCanvas:null,w:0,h:0,filter:{brightness:100,contrast:100,saturate:100,extra:""},presetId:"none",split:null,customRows:1,customCols:3,tileCanvases:[]};
+const previewCanvas=el("previewCanvas"),pctx=previewCanvas.getContext("2d");
+
+el("pickBtn").addEventListener("click",()=>el("fileInput").click());
+el("fileInput").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>loadImage(ev.target.result);r.readAsDataURL(f)});
+
+function loadImage(dataUrl){
+const img=new Image();
+img.onload=()=>{
+let w=img.naturalWidth,h=img.naturalHeight,scale=Math.min(1,MAX_DIM/Math.max(w,h));
+w=Math.round(w*scale);h=Math.round(h*scale);
+const src=document.createElement("canvas");src.width=w;src.height=h;src.getContext("2d").drawImage(img,0,0,w,h);
+state.srcCanvas=src;state.w=w;state.h=h;state.split=null;previewCanvas.width=w;previewCanvas.height=h;renderPreview();
+el("emptyState").classList.add("hidden");el("workspace").classList.remove("hidden");el("footer").classList.remove("hidden");
+buildPresetChips();buildSplitOptions();showFooter("suggest");el("tilesStrip").classList.add("hidden");clearOverlay();
+};img.src=dataUrl;
+}
+function filterString(){const f=state.filter;return `brightness(${f.brightness}%) contrast(${f.contrast}%) saturate(${f.saturate}%) ${f.extra}`.trim()}
+function renderPreview(){pctx.filter=filterString();pctx.clearRect(0,0,state.w,state.h);pctx.drawImage(state.srcCanvas,0,0);pctx.filter="none";if(state.split)renderTiles()}
+function buildPresetChips(){
+const wrap=el("presetChips");wrap.innerHTML="";
+PRESETS.forEach(p=>{const chip=document.createElement("button");chip.className="chip"+(p.id===state.presetId?" active":"");chip.textContent=p.label;
+chip.addEventListener("click",()=>{state.presetId=p.id;state.filter={brightness:p.brightness,contrast:p.contrast,saturate:p.saturate,extra:p.extra};
+el("rangeBrightness").value=p.brightness;el("rangeContrast").value=p.contrast;el("rangeSaturate").value=p.saturate;
+[...wrap.children].forEach(c=>c.classList.remove("active"));chip.classList.add("active");renderPreview()});wrap.appendChild(chip)});
+}
+["rangeBrightness","rangeContrast","rangeSaturate"].forEach(id=>el(id).addEventListener("input",e=>{const m={rangeBrightness:"brightness",rangeContrast:"contrast",rangeSaturate:"saturate"};state.filter[m[id]]=Number(e.target.value);state.presetId="custom";renderPreview()}));
+el("toggleAdjust").addEventListener("click",()=>el("adjustPanel").classList.toggle("hidden"));
+
+function makeSplitVisual(rows,cols,size){
+const box=document.createElement("div");box.className="split-visual";let w,h;
+if(cols>rows){w=size;h=Math.round(size*.62)}else if(rows>cols){w=Math.round(size*.62);h=size}else{w=size;h=size}
+box.style.width=w+"px";box.style.height=h+"px";box.style.gridTemplateColumns=`repeat(${cols},1fr)`;box.style.gridTemplateRows=`repeat(${rows},1fr)`;box.style.gap="2px";
+for(let i=0;i<rows*cols;i++){const c=document.createElement("div");c.className="cell";box.appendChild(c)}return box;
+}
+function recommendedOrder(w,h){const r=w/h;if(r>1.15)return["h3","h2","h4","v2","v3","g22","g33","custom"];if(r<.87)return["v3","v2","h3","h2","g33","g22","custom"];return["h3","v3","h2","v2","g33","g22","custom"]}
+function buildSplitOptions(){
+const wrap=el("splitOptions");wrap.innerHTML="";
+recommendedOrder(state.w,state.h).forEach((id,idx)=>{const s=SPLITS.find(x=>x.id===id),pill=document.createElement("button");pill.className="split-pill"+(idx===0?" recommended":"");pill.title=s.label;
+if(idx===0){const b=document.createElement("span");b.className="badge";b.textContent="おすすめ";pill.appendChild(b)}
+if(s.id==="custom"){pill.textContent="カスタム"}else pill.appendChild(makeSplitVisual(s.rows,s.cols,40));
+pill.addEventListener("click",()=>{if(s.id==="custom")el("customRow").classList.remove("hidden");else{el("customRow").classList.add("hidden");applySplit(s.rows,s.cols,s.label)}});wrap.appendChild(pill)});
+}
+el("customRow").addEventListener("click",e=>{const a=e.target.dataset.c;if(!a)return;if(a==="rowsMinus")state.customRows=Math.max(1,state.customRows-1);if(a==="rowsPlus")state.customRows=Math.min(6,state.customRows+1);if(a==="colsMinus")state.customCols=Math.max(1,state.customCols-1);if(a==="colsPlus")state.customCols=Math.min(6,state.customCols+1);el("customRowsVal").textContent=state.customRows;el("customColsVal").textContent=state.customCols});
+el("customApply").addEventListener("click",()=>applySplit(state.customRows,state.customCols,`${state.customRows}×${state.customCols}分割`));
+function applySplit(rows,cols,label){
+state.split={rows,cols,label};renderTiles();animateCutLines(rows,cols);el("currentSplitLabel").textContent=label;const v=el("currentSplitVisual");v.innerHTML="";v.appendChild(makeSplitVisual(rows,cols,30));el("tilesStrip").classList.remove("hidden");showFooter("actions");el("statusMsg").textContent="";
+}
+el("btnChange").addEventListener("click",()=>{el("customRow").classList.add("hidden");showFooter("suggest")});
+function showFooter(mode){el("footerSuggest").classList.toggle("hidden",mode!=="suggest");el("footerActions").classList.toggle("hidden",mode!=="actions")}
+function clearOverlay(){el("cutOverlay").innerHTML=""}
+function animateCutLines(rows,cols){
+const o=el("cutOverlay");o.innerHTML="";const lines=[];
+for(let c=1;c<cols;c++){const l=document.createElement("div");l.className="cut-line v";l.style.left=`calc(${c/cols*100}% - 1px)`;o.appendChild(l);lines.push(l)}
+for(let r=1;r<rows;r++){const l=document.createElement("div");l.className="cut-line h";l.style.top=`calc(${r/rows*100}% - 1px)`;o.appendChild(l);lines.push(l)}
+requestAnimationFrame(()=>requestAnimationFrame(()=>lines.forEach(l=>l.classList.add("on"))));
+for(let i=0;i<rows*cols;i++){const r=Math.floor(i/cols),c=i%cols,b=document.createElement("div");b.className="tile-badge";b.textContent=i+1;b.style.left=`calc(${c/cols*100}% + 8px)`;b.style.top=`calc(${r/rows*100}% + 8px)`;o.appendChild(b);setTimeout(()=>b.classList.add("on"),30)}
+}
+function renderTiles(){
+if(!state.split)return;const{rows,cols}=state.split,tw=Math.floor(state.w/cols),th=Math.floor(state.h/rows),strip=el("tilesStrip");strip.innerHTML="";state.tileCanvases=[];
+for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const tile=document.createElement("canvas");tile.width=tw;tile.height=th;const ctx=tile.getContext("2d");ctx.drawImage(previewCanvas,c*tw,r*th,tw,th,0,0,tw,th);state.tileCanvases.push(tile);const wrap=document.createElement("div");wrap.className="tile-thumb";const t=document.createElement("canvas"),ratio=tw/th;t.height=82;t.width=Math.round(82*ratio);t.getContext("2d").drawImage(tile,0,0,t.width,t.height);wrap.appendChild(t);strip.appendChild(wrap)}
+}
+function tilesToBlobs(){return Promise.all(state.tileCanvases.map(c=>new Promise(res=>c.toBlob(res,"image/jpeg",.92))))}
+function timestampTag(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`}
+function blobsToFiles(blobs){const ts=timestampTag();return blobs.map((b,i)=>new File([b],`splitshot_${ts}_${String(i+1).padStart(2,"0")}.jpg`,{type:"image/jpeg"}))}
+// setTimeoutで1枚ずつ遅延させるとクリックのuser activationが切れ、
+// ブラウザの連続自動ダウンロードのブロック機能に引っかかり2枚目以降が保存されないことがある。
+// そのため同一クリック内で同期的に全件処理する。
+function downloadFilesSync(files){
+files.forEach(f=>{const u=URL.createObjectURL(f),a=document.createElement("a");a.href=u;a.download=f.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)});
+}
+async function saveFiles(files){
+if(navigator.canShare&&navigator.canShare({files})){
+try{await navigator.share({files});return "shared"}catch(err){if(err&&err.name==="AbortError")return "cancelled"}
+}
+downloadFilesSync(files);return "downloaded";
+}
+el("btnSave").addEventListener("click",async()=>{
+el("statusMsg").textContent="保存しています…";
+const blobs=await tilesToBlobs(),files=blobsToFiles(blobs),result=await saveFiles(files);
+el("statusMsg").textContent=result==="cancelled"?"":result==="shared"?"共有シートから保存してください":`${files.length}枚を保存しました`;
+});
+el("btnShare").addEventListener("click",async()=>{
+const caption=el("captionInput").value||"";
+el("statusMsg").textContent="画像を準備しています…";
+const blobs=await tilesToBlobs(),files=blobsToFiles(blobs);
+if(navigator.canShare&&navigator.canShare({files,text:caption})){
+try{await navigator.share({files,text:caption});el("statusMsg").textContent="共有しました";return}catch(err){if(err&&err.name==="AbortError"){el("statusMsg").textContent="";return}}
+}
+downloadFilesSync(files);
+el("statusMsg").textContent="画像を保存しました。Xを開いています…";
+const text=encodeURIComponent(caption);
+setTimeout(()=>{window.location.href=`https://x.com/intent/post?text=${text}`},400);
+});
+})();
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(()=>{}));
+</script>
+</body>
+</html>
