@@ -35,6 +35,10 @@ button,input{font-family:inherit}button{cursor:pointer}.hidden{display:none!impo
 #stage.has-image{padding-bottom:150px}
 .empty-state{position:relative;min-height:calc(100dvh - 40px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 0 20px}
 .app-version{position:absolute;left:0;right:0;bottom:8px;color:#999;font-size:11px;line-height:1.4;text-align:center}
+.upload-note{max-width:280px;text-align:center;font-size:12px;line-height:1.5}
+.upload-note{order:3;margin-top:10px;color:var(--muted)}
+.file-error{position:fixed;z-index:12;top:calc(66px + env(safe-area-inset-top));left:12px;right:12px;max-width:620px;margin:0 auto;padding:10px 14px;border:1px solid rgba(198,40,40,.18);border-radius:12px;background:rgba(255,245,245,.98);box-shadow:0 6px 24px rgba(0,0,0,.10);color:#c62828;text-align:center;font-size:12px;line-height:1.5}
+.workspace-head{display:flex;align-items:center;justify-content:space-between}
 .update-notice{position:fixed;z-index:10;top:calc(12px + env(safe-area-inset-top));left:12px;right:12px;max-width:620px;margin:0 auto;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,.97);border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.12);font-size:13px}
 .update-notice button{flex:0 0 auto;border:0;border-radius:999px;background:var(--text);color:#fff;padding:9px 14px;font-size:12px;font-weight:700}
 .empty-state h1{
@@ -96,10 +100,13 @@ letter-spacing:-.045em;
 <div id="emptyState" class="empty-state">
 <h1 aria-label="SplitShot"><span class="logo-split">Split</span><span class="logo-shot">Shot</span></h1>
 <button id="pickBtn" class="btn-primary">画像を選ぶ</button>
-<input type="file" id="fileInput" accept="image/*" hidden>
-<small class="app-version">Version 4.1</small>
+<small class="upload-note">画像は20MBまで</small>
+<small class="app-version">Version 4.2</small>
 </div>
+<input type="file" id="fileInput" accept="image/*" hidden>
+<p id="fileError" class="file-error hidden" role="alert" aria-live="polite"></p>
 <div id="workspace" class="workspace hidden">
+<div class="workspace-head"><button id="btnBack" class="btn-ghost" type="button">&larr; 戻る</button><button id="btnReselect" class="btn-ghost" type="button">画像を選び直す</button></div>
 <div class="canvas-wrap"><canvas id="previewCanvas"></canvas><div class="cut-overlay" id="cutOverlay"></div></div>
 <div class="filter-strip">
 <div class="filter-head"><span class="section-label">Filter</span><button class="link-btn" id="toggleAdjust">調整</button></div>
@@ -139,6 +146,7 @@ letter-spacing:-.045em;
 (function(){
 "use strict";
 const MAX_DIM=1800;
+const MAX_FILE_SIZE=20*1024*1024;
 const SPLITS=[
 {id:"h2",label:"横に2分割",rows:1,cols:2},{id:"h3",label:"横に3分割",rows:1,cols:3},
 {id:"h4",label:"横に4分割",rows:1,cols:4},{id:"v2",label:"縦に2分割",rows:2,cols:1},
@@ -163,19 +171,41 @@ ctx.fillStyle="#fff";ctx.fillRect(0,0,1,1);ctx.filter="brightness(0%)";ctx.fillR
 return ctx.getImageData(0,0,1,1).data[0]<16;
 })();
 
-el("pickBtn").addEventListener("click",()=>el("fileInput").click());
-el("fileInput").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>loadImage(ev.target.result);r.readAsDataURL(f)});
+function openFilePicker(){el("fileInput").click()}
+el("pickBtn").addEventListener("click",openFilePicker);
+el("btnReselect").addEventListener("click",openFilePicker);
+el("btnBack").addEventListener("click",()=>{
+state.srcCanvas=null;state.w=0;state.h=0;state.split=null;state.tileCanvases=[];
+state.filter={brightness:100,contrast:100,saturate:100,extra:""};state.presetId="none";state.customRows=1;state.customCols=3;
+previewCanvas.width=0;previewCanvas.height=0;el("fileInput").value="";el("fileError").classList.add("hidden");
+el("rangeBrightness").value=100;el("rangeContrast").value=100;el("rangeSaturate").value=100;el("customRow").classList.add("hidden");
+el("stage").classList.remove("has-image");el("workspace").classList.add("hidden");el("emptyState").classList.remove("hidden");el("footer").classList.add("hidden");
+el("tilesStrip").innerHTML="";clearOverlay();el("statusMsg").textContent="";el("captionInput").value="";window.scrollTo(0,0);
+});
+el("fileInput").addEventListener("change",e=>{
+const file=e.target.files[0];e.target.value="";if(!file)return;
+el("fileError").classList.add("hidden");
+if(file.size>MAX_FILE_SIZE){el("fileError").textContent="画像は20MBまでです。サイズを小さくしてから、もう一度選んでください。";el("fileError").classList.remove("hidden");return}
+loadImage(file);
+});
 
-function loadImage(dataUrl){
+function loadImage(file){
+const objectUrl=URL.createObjectURL(file);
 const img=new Image();
 img.onload=()=>{
+try{
 let w=img.naturalWidth,h=img.naturalHeight,scale=Math.min(1,MAX_DIM/Math.max(w,h));
+if(!w||!h)throw new Error("画像のサイズを取得できませんでした");
 w=Math.round(w*scale);h=Math.round(h*scale);
-const src=document.createElement("canvas");src.width=w;src.height=h;src.getContext("2d").drawImage(img,0,0,w,h);
+const src=document.createElement("canvas");src.width=w;src.height=h;const srcContext=src.getContext("2d");if(!srcContext)throw new Error("Canvasを作成できませんでした");srcContext.drawImage(img,0,0,w,h);
 state.srcCanvas=src;state.w=w;state.h=h;state.split=null;previewCanvas.width=w;previewCanvas.height=h;renderPreview();el("stage").classList.add("has-image");
 el("emptyState").classList.add("hidden");el("workspace").classList.remove("hidden");el("footer").classList.remove("hidden");
 buildPresetChips();buildSplitOptions();showFooter("suggest");el("tilesStrip").classList.add("hidden");clearOverlay();
-};img.src=dataUrl;
+}catch(err){el("fileError").textContent="この画像を処理できませんでした。20MB以下の別の画像でお試しください。";el("fileError").classList.remove("hidden")}
+finally{URL.revokeObjectURL(objectUrl)}
+};
+img.onerror=()=>{URL.revokeObjectURL(objectUrl);el("fileError").textContent="この画像を読み込めませんでした。JPGまたはPNGに変換してお試しください。";el("fileError").classList.remove("hidden")};
+img.src=objectUrl;
 }
 function applyPixelFilters(imageData,filter){
 const data=imageData.data;

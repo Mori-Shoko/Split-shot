@@ -1,4 +1,4 @@
-const CACHE_NAME = 'splitshot-v5';
+const CACHE_NAME = 'splitshot-v6';
 
 const APP_SHELL = [
   './',
