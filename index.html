@@ -106,7 +106,7 @@ letter-spacing:-.045em;
 <div class="footer-inner hidden" id="footerActions">
 <div class="current-split"><div class="name"><div class="split-visual" id="currentSplitVisual"></div><span class="lbl" id="currentSplitLabel"></span></div><button class="btn-ghost" id="btnChange">変える</button></div>
 <div class="actions-row"><input type="text" id="captionInput" placeholder="キャプション（任意）"></div>
-<div class="actions-row main-actions"><button class="btn-secondary" id="btnSave">保存</button><button class="btn-primary" id="btnShare">Xにポスト</button></div>
+<div class="actions-row main-actions"><button class="btn-secondary" id="btnDownload">ダウンロード</button><button class="btn-primary" id="btnShare">シェア</button></div>
 <div class="status-msg" id="statusMsg"></div>
 </div>
 </div>
@@ -200,28 +200,23 @@ function blobsToFiles(blobs){const ts=timestampTag();return blobs.map((b,i)=>new
 function downloadFilesSync(files){
 files.forEach(f=>{const u=URL.createObjectURL(f),a=document.createElement("a");a.href=u;a.download=f.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)});
 }
-async function saveFiles(files){
-if(navigator.canShare&&navigator.canShare({files})){
-try{await navigator.share({files});return "shared"}catch(err){if(err&&err.name==="AbortError")return "cancelled"}
-}
-downloadFilesSync(files);return "downloaded";
-}
-el("btnSave").addEventListener("click",async()=>{
-el("statusMsg").textContent="保存しています…";
-const blobs=await tilesToBlobs(),files=blobsToFiles(blobs),result=await saveFiles(files);
-el("statusMsg").textContent=result==="cancelled"?"":result==="shared"?"共有シートから保存してください":`${files.length}枚を保存しました`;
+el("btnDownload").addEventListener("click",async()=>{
+el("statusMsg").textContent="画像をダウンロードしています…";
+const blobs=await tilesToBlobs(),files=blobsToFiles(blobs);
+downloadFilesSync(files);
+el("statusMsg").textContent=`${files.length}枚をダウンロードしました`;
 });
 el("btnShare").addEventListener("click",async()=>{
 const caption=el("captionInput").value||"";
 el("statusMsg").textContent="画像を準備しています…";
 const blobs=await tilesToBlobs(),files=blobsToFiles(blobs);
-if(navigator.canShare&&navigator.canShare({files,text:caption})){
-try{await navigator.share({files,text:caption});el("statusMsg").textContent="共有しました";return}catch(err){if(err&&err.name==="AbortError"){el("statusMsg").textContent="";return}}
+const shareData=caption?{files,text:caption}:{files};
+if(!navigator.share||(navigator.canShare&&!navigator.canShare(shareData))){
+el("statusMsg").textContent="このブラウザは画像共有に対応していません。ダウンロードをご利用ください。";
+return;
 }
-downloadFilesSync(files);
-el("statusMsg").textContent="画像を保存しました。Xを開いています…";
-const text=encodeURIComponent(caption);
-setTimeout(()=>{window.location.href=`https://x.com/intent/post?text=${text}`},400);
+try{await navigator.share(shareData);el("statusMsg").textContent="共有しました"}
+catch(err){if(err&&err.name==="AbortError"){el("statusMsg").textContent="";return}el("statusMsg").textContent="共有できませんでした。ダウンロードをご利用ください。"}
 });
 })();
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(()=>{}));
