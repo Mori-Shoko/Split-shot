@@ -17,7 +17,10 @@ body{margin:0;color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFo
 button,input{font-family:inherit}button{cursor:pointer}.hidden{display:none!important}
 #app{min-height:100dvh;display:flex;flex-direction:column}
 #stage{flex:1;width:100%;max-width:680px;margin:0 auto;padding:20px 20px 150px}
-.empty-state{min-height:calc(100dvh - 40px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 0 20px}
+.empty-state{position:relative;min-height:calc(100dvh - 40px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 0 20px}
+.app-version{position:absolute;left:0;right:0;bottom:8px;color:#999;font-size:11px;line-height:1.4;text-align:center}
+.update-notice{position:fixed;z-index:10;top:calc(12px + env(safe-area-inset-top));left:12px;right:12px;max-width:620px;margin:0 auto;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,.97);border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.12);font-size:13px}
+.update-notice button{flex:0 0 auto;border:0;border-radius:999px;background:var(--text);color:#fff;padding:9px 14px;font-size:12px;font-weight:700}
 .empty-state h1{
 margin:0 0 38px;
 position:relative;
@@ -78,6 +81,7 @@ letter-spacing:-.045em;
 <h1 aria-label="SplitShot"><span class="logo-split">Split</span><span class="logo-shot">Shot</span></h1>
 <button id="pickBtn" class="btn-primary">画像を選ぶ</button>
 <input type="file" id="fileInput" accept="image/*" hidden>
+<small class="app-version">Version 2</small>
 </div>
 <div id="workspace" class="workspace hidden">
 <div class="canvas-wrap"><canvas id="previewCanvas"></canvas><div class="cut-overlay" id="cutOverlay"></div></div>
@@ -110,6 +114,10 @@ letter-spacing:-.045em;
 <div class="status-msg" id="statusMsg"></div>
 </div>
 </div>
+</div>
+<div id="updateNotice" class="update-notice hidden" role="status" aria-live="polite">
+<span>新しいバージョンがあります</span>
+<button id="updateNow" type="button">更新する</button>
 </div>
 <script>
 (function(){
@@ -219,7 +227,41 @@ try{await navigator.share(shareData);el("statusMsg").textContent="共有しま�
 catch(err){if(err&&err.name==="AbortError"){el("statusMsg").textContent="";return}el("statusMsg").textContent="共有できませんでした。ダウンロードをご利用ください。"}
 });
 })();
-if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(()=>{}));
+if("serviceWorker" in navigator){
+let waitingWorker=null;
+let updateAccepted=false;
+let reloading=false;
+const updateNotice=document.getElementById("updateNotice");
+function showUpdate(registration){
+if(!registration.waiting||!navigator.serviceWorker.controller)return;
+waitingWorker=registration.waiting;
+updateNotice.classList.remove("hidden");
+}
+window.addEventListener("load",async()=>{
+try{
+const registration=await navigator.serviceWorker.register("./service-worker.js");
+showUpdate(registration);
+registration.addEventListener("updatefound",()=>{
+const installing=registration.installing;
+if(!installing)return;
+installing.addEventListener("statechange",()=>{
+if(installing.state==="installed")showUpdate(registration);
+});
+});
+registration.update().catch(()=>{});
+}catch{}
+});
+document.getElementById("updateNow").addEventListener("click",()=>{
+if(!waitingWorker)return;
+updateAccepted=true;
+waitingWorker.postMessage({type:"SKIP_WAITING"});
+});
+navigator.serviceWorker.addEventListener("controllerchange",()=>{
+if(!updateAccepted||reloading)return;
+reloading=true;
+window.location.reload();
+});
+}
 </script>
 </body>
 </html>
