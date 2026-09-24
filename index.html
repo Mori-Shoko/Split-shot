@@ -63,6 +63,8 @@ font-weight:400;
 letter-spacing:-.045em;
 }
 .empty-state #pickBtn{order:2}
+.loading-spinner{display:inline-block;width:17px;height:17px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:loading-spin .7s linear infinite;flex:0 0 auto}@keyframes loading-spin{to{transform:rotate(360deg)}}
+.btn-primary.is-loading,.btn-ghost.is-loading{gap:8px;opacity:.88;cursor:wait}
 .btn-primary,.btn-secondary,.btn-ghost{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;font-weight:700;transition:transform .15s,box-shadow .15s,background .15s}
 .btn-primary{min-width:210px;min-height:58px;padding:17px 32px;background:var(--accent);color:#fff;border:1px solid var(--accent);font-size:15px;letter-spacing:.01em;box-shadow:0 10px 28px rgba(255,79,135,.20)}
 .btn-primary:hover{background:#f5447e;box-shadow:0 12px 32px rgba(255,79,135,.25);transform:translateY(-1px)}
@@ -101,7 +103,7 @@ letter-spacing:-.045em;
 <h1 aria-label="SplitShot"><span class="logo-split">Split</span><span class="logo-shot">Shot</span></h1>
 <button id="pickBtn" class="btn-primary">画像を選ぶ</button>
 <small class="upload-note">画像は20MBまで</small>
-<small class="app-version">Version 4.2</small>
+<small class="app-version">Version 4.4</small>
 </div>
 <input type="file" id="fileInput" accept="image/*" hidden>
 <p id="fileError" class="file-error hidden" role="alert" aria-live="polite"></p>
@@ -171,9 +173,11 @@ ctx.fillStyle="#fff";ctx.fillRect(0,0,1,1);ctx.filter="brightness(0%)";ctx.fillR
 return ctx.getImageData(0,0,1,1).data[0]<16;
 })();
 
-function openFilePicker(){el("fileInput").click()}
-el("pickBtn").addEventListener("click",openFilePicker);
-el("btnReselect").addEventListener("click",openFilePicker);
+let pickerButton=null;
+function openFilePicker(button){pickerButton=button;setPickLoading(true);el("fileInput").click()}
+function setPickLoading(loading){const button=pickerButton;if(!button)return;button.disabled=loading;button.classList.toggle("is-loading",loading);button.setAttribute("aria-busy",String(loading));button.innerHTML=loading?'<span class="loading-spinner" aria-hidden="true"></span><span>読み込み中…</span>':(button.id==="btnReselect"?"画像を選び直す":"画像を選ぶ");if(!loading)pickerButton=null}
+el("pickBtn").addEventListener("click",()=>openFilePicker(el("pickBtn")));
+el("btnReselect").addEventListener("click",()=>openFilePicker(el("btnReselect")));
 el("btnBack").addEventListener("click",()=>{
 state.srcCanvas=null;state.w=0;state.h=0;state.split=null;state.tileCanvases=[];
 state.filter={brightness:100,contrast:100,saturate:100,extra:""};state.presetId="none";state.customRows=1;state.customCols=3;
@@ -183,11 +187,14 @@ el("stage").classList.remove("has-image");el("workspace").classList.add("hidden"
 el("tilesStrip").innerHTML="";clearOverlay();el("statusMsg").textContent="";el("captionInput").value="";window.scrollTo(0,0);
 });
 el("fileInput").addEventListener("change",e=>{
-const file=e.target.files[0];e.target.value="";if(!file)return;
+const file=e.target.files[0];e.target.value="";if(!file){setPickLoading(false);return}
 el("fileError").classList.add("hidden");
-if(file.size>MAX_FILE_SIZE){el("fileError").textContent="画像は20MBまでです。サイズを小さくしてから、もう一度選んでください。";el("fileError").classList.remove("hidden");return}
+requestAnimationFrame(()=>requestAnimationFrame(()=>{
+if(file.size>MAX_FILE_SIZE){setPickLoading(false);el("fileError").textContent="画像は20MBまでです。サイズを小さくしてから、もう一度選んでください。";el("fileError").classList.remove("hidden");return}
 loadImage(file);
+}));
 });
+el("fileInput").addEventListener("cancel",()=>setPickLoading(false));
 
 function loadImage(file){
 const objectUrl=URL.createObjectURL(file);
@@ -202,9 +209,9 @@ state.srcCanvas=src;state.w=w;state.h=h;state.split=null;previewCanvas.width=w;p
 el("emptyState").classList.add("hidden");el("workspace").classList.remove("hidden");el("footer").classList.remove("hidden");
 buildPresetChips();buildSplitOptions();showFooter("suggest");el("tilesStrip").classList.add("hidden");clearOverlay();
 }catch(err){el("fileError").textContent="この画像を処理できませんでした。20MB以下の別の画像でお試しください。";el("fileError").classList.remove("hidden")}
-finally{URL.revokeObjectURL(objectUrl)}
+finally{URL.revokeObjectURL(objectUrl);setPickLoading(false)}
 };
-img.onerror=()=>{URL.revokeObjectURL(objectUrl);el("fileError").textContent="この画像を読み込めませんでした。JPGまたはPNGに変換してお試しください。";el("fileError").classList.remove("hidden")};
+img.onerror=()=>{URL.revokeObjectURL(objectUrl);setPickLoading(false);el("fileError").textContent="この画像を読み込めませんでした。JPGまたはPNGに変換してお試しください。";el("fileError").classList.remove("hidden")};
 img.src=objectUrl;
 }
 function applyPixelFilters(imageData,filter){
