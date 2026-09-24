@@ -35,6 +35,10 @@ button,input{font-family:inherit}button{cursor:pointer}.hidden{display:none!impo
 #stage.has-image{padding-bottom:150px}
 .empty-state{position:relative;min-height:calc(100dvh - 40px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 0 20px}
 .app-version{position:absolute;left:0;right:0;bottom:8px;color:#999;font-size:11px;line-height:1.4;text-align:center}
+.upload-note{max-width:280px;text-align:center;font-size:12px;line-height:1.5}
+.upload-note{order:3;margin-top:10px;color:var(--muted)}
+.file-error{position:fixed;z-index:12;top:calc(66px + env(safe-area-inset-top));left:12px;right:12px;max-width:620px;margin:0 auto;padding:10px 14px;border:1px solid rgba(198,40,40,.18);border-radius:12px;background:rgba(255,245,245,.98);box-shadow:0 6px 24px rgba(0,0,0,.10);color:#c62828;text-align:center;font-size:12px;line-height:1.5}
+.workspace-head{display:flex;align-items:center;justify-content:space-between}
 .update-notice{position:fixed;z-index:10;top:calc(12px + env(safe-area-inset-top));left:12px;right:12px;max-width:620px;margin:0 auto;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,.97);border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.12);font-size:13px}
 .update-notice button{flex:0 0 auto;border:0;border-radius:999px;background:var(--text);color:#fff;padding:9px 14px;font-size:12px;font-weight:700}
 .empty-state h1{
@@ -96,10 +100,13 @@ letter-spacing:-.045em;
 <div id="emptyState" class="empty-state">
 <h1 aria-label="SplitShot"><span class="logo-split">Split</span><span class="logo-shot">Shot</span></h1>
 <button id="pickBtn" class="btn-primary">画像を選ぶ</button>
-<input type="file" id="fileInput" accept="image/*" hidden>
-<small class="app-version">Version 4.0</small>
+<small class="upload-note">画像は20MBまで</small>
+<small class="app-version">Version 4.2</small>
 </div>
+<input type="file" id="fileInput" accept="image/*" hidden>
+<p id="fileError" class="file-error hidden" role="alert" aria-live="polite"></p>
 <div id="workspace" class="workspace hidden">
+<div class="workspace-head"><button id="btnBack" class="btn-ghost" type="button">&larr; 戻る</button><button id="btnReselect" class="btn-ghost" type="button">画像を選び直す</button></div>
 <div class="canvas-wrap"><canvas id="previewCanvas"></canvas><div class="cut-overlay" id="cutOverlay"></div></div>
 <div class="filter-strip">
 <div class="filter-head"><span class="section-label">Filter</span><button class="link-btn" id="toggleAdjust">調整</button></div>
@@ -139,6 +146,7 @@ letter-spacing:-.045em;
 (function(){
 "use strict";
 const MAX_DIM=1800;
+const MAX_FILE_SIZE=20*1024*1024;
 const SPLITS=[
 {id:"h2",label:"横に2分割",rows:1,cols:2},{id:"h3",label:"横に3分割",rows:1,cols:3},
 {id:"h4",label:"横に4分割",rows:1,cols:4},{id:"v2",label:"縦に2分割",rows:2,cols:1},
@@ -155,23 +163,87 @@ const PRESETS=[
 const el=id=>document.getElementById(id);
 const state={srcCanvas:null,w:0,h:0,filter:{brightness:100,contrast:100,saturate:100,extra:""},presetId:"none",split:null,customRows:1,customCols:3,tileCanvases:[]};
 const previewCanvas=el("previewCanvas"),pctx=previewCanvas.getContext("2d");
+const supportsCanvasFilter=(()=>{
+const canvas=document.createElement("canvas");canvas.width=canvas.height=1;
+const ctx=canvas.getContext("2d");
+if(!ctx||!("filter" in ctx))return false;
+ctx.fillStyle="#fff";ctx.fillRect(0,0,1,1);ctx.filter="brightness(0%)";ctx.fillRect(0,0,1,1);ctx.filter="none";
+return ctx.getImageData(0,0,1,1).data[0]<16;
+})();
 
-el("pickBtn").addEventListener("click",()=>el("fileInput").click());
-el("fileInput").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>loadImage(ev.target.result);r.readAsDataURL(f)});
+function openFilePicker(){el("fileInput").click()}
+el("pickBtn").addEventListener("click",openFilePicker);
+el("btnReselect").addEventListener("click",openFilePicker);
+el("btnBack").addEventListener("click",()=>{
+state.srcCanvas=null;state.w=0;state.h=0;state.split=null;state.tileCanvases=[];
+state.filter={brightness:100,contrast:100,saturate:100,extra:""};state.presetId="none";state.customRows=1;state.customCols=3;
+previewCanvas.width=0;previewCanvas.height=0;el("fileInput").value="";el("fileError").classList.add("hidden");
+el("rangeBrightness").value=100;el("rangeContrast").value=100;el("rangeSaturate").value=100;el("customRow").classList.add("hidden");
+el("stage").classList.remove("has-image");el("workspace").classList.add("hidden");el("emptyState").classList.remove("hidden");el("footer").classList.add("hidden");
+el("tilesStrip").innerHTML="";clearOverlay();el("statusMsg").textContent="";el("captionInput").value="";window.scrollTo(0,0);
+});
+el("fileInput").addEventListener("change",e=>{
+const file=e.target.files[0];e.target.value="";if(!file)return;
+el("fileError").classList.add("hidden");
+if(file.size>MAX_FILE_SIZE){el("fileError").textContent="画像は20MBまでです。サイズを小さくしてから、もう一度選んでください。";el("fileError").classList.remove("hidden");return}
+loadImage(file);
+});
 
-function loadImage(dataUrl){
+function loadImage(file){
+const objectUrl=URL.createObjectURL(file);
 const img=new Image();
 img.onload=()=>{
+try{
 let w=img.naturalWidth,h=img.naturalHeight,scale=Math.min(1,MAX_DIM/Math.max(w,h));
+if(!w||!h)throw new Error("画像のサイズを取得できませんでした");
 w=Math.round(w*scale);h=Math.round(h*scale);
-const src=document.createElement("canvas");src.width=w;src.height=h;src.getContext("2d").drawImage(img,0,0,w,h);
+const src=document.createElement("canvas");src.width=w;src.height=h;const srcContext=src.getContext("2d");if(!srcContext)throw new Error("Canvasを作成できませんでした");srcContext.drawImage(img,0,0,w,h);
 state.srcCanvas=src;state.w=w;state.h=h;state.split=null;previewCanvas.width=w;previewCanvas.height=h;renderPreview();el("stage").classList.add("has-image");
 el("emptyState").classList.add("hidden");el("workspace").classList.remove("hidden");el("footer").classList.remove("hidden");
 buildPresetChips();buildSplitOptions();showFooter("suggest");el("tilesStrip").classList.add("hidden");clearOverlay();
-};img.src=dataUrl;
+}catch(err){el("fileError").textContent="この画像を処理できませんでした。20MB以下の別の画像でお試しください。";el("fileError").classList.remove("hidden")}
+finally{URL.revokeObjectURL(objectUrl)}
+};
+img.onerror=()=>{URL.revokeObjectURL(objectUrl);el("fileError").textContent="この画像を読み込めませんでした。JPGまたはPNGに変換してお試しください。";el("fileError").classList.remove("hidden")};
+img.src=objectUrl;
+}
+function applyPixelFilters(imageData,filter){
+const data=imageData.data;
+const brightness=filter.brightness/100,contrast=filter.contrast/100,saturate=filter.saturate/100;
+const sepiaMatch=filter.extra.match(/sepia\(([\d.]+)\)/),sepia=sepiaMatch?Number(sepiaMatch[1]):0;
+const hueMatch=filter.extra.match(/hue-rotate\((-?[\d.]+)deg\)/),angle=hueMatch?Number(hueMatch[1])*Math.PI/180:0;
+const cos=Math.cos(angle),sin=Math.sin(angle);
+for(let i=0;i<data.length;i+=4){
+let r=data[i]*brightness,g=data[i+1]*brightness,b=data[i+2]*brightness;
+r=((r/255-.5)*contrast+.5)*255;g=((g/255-.5)*contrast+.5)*255;b=((b/255-.5)*contrast+.5)*255;
+const gray=.213*r+.715*g+.072*b;
+r=gray+saturate*(r-gray);g=gray+saturate*(g-gray);b=gray+saturate*(b-gray);
+if(sepia){
+const sr=.393*r+.769*g+.189*b,sg=.349*r+.686*g+.168*b,sb=.272*r+.534*g+.131*b;
+r+=sepia*(sr-r);g+=sepia*(sg-g);b+=sepia*(sb-b);
+}
+if(angle){
+const nr=(.213+cos*.787-sin*.213)*r+(.715-cos*.715-sin*.715)*g+(.072-cos*.072+sin*.928)*b;
+const ng=(.213-cos*.213+sin*.143)*r+(.715+cos*.285+sin*.140)*g+(.072-cos*.072-sin*.283)*b;
+const nb=(.213-cos*.213-sin*.787)*r+(.715-cos*.715+sin*.715)*g+(.072+cos*.928+sin*.072)*b;
+r=nr;g=ng;b=nb;
+}
+data[i]=r;data[i+1]=g;data[i+2]=b;
+}
 }
 function filterString(){const f=state.filter;return `brightness(${f.brightness}%) contrast(${f.contrast}%) saturate(${f.saturate}%) ${f.extra}`.trim()}
-function renderPreview(){pctx.filter=filterString();pctx.clearRect(0,0,state.w,state.h);pctx.drawImage(state.srcCanvas,0,0);pctx.filter="none";if(state.split)renderTiles()}
+function renderPreview(){
+pctx.clearRect(0,0,state.w,state.h);
+if(supportsCanvasFilter){pctx.filter=filterString();pctx.drawImage(state.srcCanvas,0,0);pctx.filter="none"}
+else{
+pctx.drawImage(state.srcCanvas,0,0);
+const f=state.filter;
+if(f.brightness!==100||f.contrast!==100||f.saturate!==100||f.extra){
+const pixels=pctx.getImageData(0,0,state.w,state.h);applyPixelFilters(pixels,f);pctx.putImageData(pixels,0,0);
+}
+}
+if(state.split)renderTiles();
+}
 function buildPresetChips(){
 const wrap=el("presetChips");wrap.innerHTML="";
 PRESETS.forEach(p=>{const chip=document.createElement("button");chip.className="chip"+(p.id===state.presetId?" active":"");chip.textContent=p.label;
@@ -218,17 +290,33 @@ for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const tile=document.createElement
 function tilesToBlobs(){return Promise.all(state.tileCanvases.map(c=>new Promise(res=>c.toBlob(res,"image/jpeg",.92))))}
 function timestampTag(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`}
 function blobsToFiles(blobs){const ts=timestampTag();return blobs.map((b,i)=>new File([b],`splitshot_${ts}_${String(i+1).padStart(2,"0")}.jpg`,{type:"image/jpeg"}))}
-// setTimeoutで1枚ずつ遅延させるとクリックのuser activationが切れ、
-// ブラウザの連続自動ダウンロードのブロック機能に引っかかり2枚目以降が保存されないことがある。
-// そのため同一クリック内で同期的に全件処理する。
+function createCrc32Table(){const table=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);table[n]=c>>>0}return table}
+const crc32Table=createCrc32Table();
+function crc32(bytes){let crc=0xffffffff;for(const byte of bytes)crc=crc32Table[(crc^byte)&0xff]^(crc>>>8);return(crc^0xffffffff)>>>0}
+async function createZipBlob(files){
+const encoder=new TextEncoder(),localParts=[],centralParts=[];let offset=0,centralSize=0;
+const now=new Date(),dosTime=(now.getHours()<<11)|(now.getMinutes()<<5)|Math.floor(now.getSeconds()/2),dosDate=((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate();
+for(const file of files){
+const name=encoder.encode(file.name),data=new Uint8Array(await file.arrayBuffer()),crc=crc32(data),local=new Uint8Array(30+name.length),localView=new DataView(local.buffer);
+localView.setUint32(0,0x04034b50,true);localView.setUint16(4,20,true);localView.setUint16(6,0x0800,true);localView.setUint16(8,0,true);localView.setUint16(10,dosTime,true);localView.setUint16(12,dosDate,true);localView.setUint32(14,crc,true);localView.setUint32(18,data.length,true);localView.setUint32(22,data.length,true);localView.setUint16(26,name.length,true);localView.setUint16(28,0,true);local.set(name,30);
+const central=new Uint8Array(46+name.length),centralView=new DataView(central.buffer);
+centralView.setUint32(0,0x02014b50,true);centralView.setUint16(4,20,true);centralView.setUint16(6,20,true);centralView.setUint16(8,0x0800,true);centralView.setUint16(10,0,true);centralView.setUint16(12,dosTime,true);centralView.setUint16(14,dosDate,true);centralView.setUint32(16,crc,true);centralView.setUint32(20,data.length,true);centralView.setUint32(24,data.length,true);centralView.setUint16(28,name.length,true);centralView.setUint16(30,0,true);centralView.setUint16(32,0,true);centralView.setUint16(34,0,true);centralView.setUint16(36,0,true);centralView.setUint32(38,0,true);centralView.setUint32(42,offset,true);central.set(name,46);
+localParts.push(local,data);centralParts.push(central);offset+=local.length+data.length;centralSize+=central.length;
+}
+const end=new Uint8Array(22),endView=new DataView(end.buffer);endView.setUint32(0,0x06054b50,true);endView.setUint16(4,0,true);endView.setUint16(6,0,true);endView.setUint16(8,files.length,true);endView.setUint16(10,files.length,true);endView.setUint32(12,centralSize,true);endView.setUint32(16,offset,true);endView.setUint16(20,0,true);
+return new Blob([...localParts,...centralParts,end],{type:"application/zip"});
+}
+function isMobileDevice(){return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1)}
+function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000)}
 function downloadFilesSync(files){
 files.forEach(f=>{const u=URL.createObjectURL(f),a=document.createElement("a");a.href=u;a.download=f.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)});
 }
+if(!isMobileDevice())el("btnDownload").textContent="ZIPでダウンロード";
 el("btnDownload").addEventListener("click",async()=>{
 el("statusMsg").textContent="画像をダウンロードしています…";
 const blobs=await tilesToBlobs(),files=blobsToFiles(blobs);
-downloadFilesSync(files);
-el("statusMsg").textContent=`${files.length}枚をダウンロードしました`;
+if(!isMobileDevice()&&files.length>1){const zip=await createZipBlob(files);downloadBlob(zip,`splitshot_${timestampTag()}.zip`);el("statusMsg").textContent=`${files.length}枚をZIPでダウンロードしました`}
+else{downloadFilesSync(files);el("statusMsg").textContent=`${files.length}枚をダウンロードしました`}
 });
 el("btnShare").addEventListener("click",async()=>{
 const caption=el("captionInput").value||"";
