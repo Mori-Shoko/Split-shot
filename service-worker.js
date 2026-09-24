@@ -1,11 +1,13 @@
-const CACHE_NAME = 'splitshot-v2';
+const CACHE_NAME = 'splitshot-v3';
 
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './favicon.ico',
+  './OGP.jpg'
 ];
 
 self.addEventListener('install', event => {

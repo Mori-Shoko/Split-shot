@@ -1,7 +1,7 @@
 {
   "name": "SplitShot",
   "short_name": "SplitShot",
-  "description": "画像をもっと綺麗に分割するツール",
+  "description": "SplitShotは画像分割に特化したWEBアプリです。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
