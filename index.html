@@ -31,7 +31,8 @@ html,body{height:100%}
 body{margin:0;color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100dvh;overflow-x:hidden;background:radial-gradient(ellipse 70% 55% at 18% 18%,rgba(255,79,135,.10),transparent 62%),radial-gradient(ellipse 65% 55% at 84% 78%,rgba(124,92,255,.075),transparent 62%),linear-gradient(135deg,#fbfaf9 0%,#f7f7f8 52%,#f8f7fa 100%)}
 button,input{font-family:inherit}button{cursor:pointer}.hidden{display:none!important}
 #app{min-height:100dvh;display:flex;flex-direction:column}
-#stage{flex:1;width:100%;max-width:680px;margin:0 auto;padding:20px 20px 150px}
+#stage{flex:1;width:100%;max-width:680px;margin:0 auto;padding:20px}
+#stage.has-image{padding-bottom:150px}
 .empty-state{position:relative;min-height:calc(100dvh - 40px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 0 20px}
 .app-version{position:absolute;left:0;right:0;bottom:8px;color:#999;font-size:11px;line-height:1.4;text-align:center}
 .update-notice{position:fixed;z-index:10;top:calc(12px + env(safe-area-inset-top));left:12px;right:12px;max-width:620px;margin:0 auto;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,.97);border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.12);font-size:13px}
@@ -96,7 +97,7 @@ letter-spacing:-.045em;
 <h1 aria-label="SplitShot"><span class="logo-split">Split</span><span class="logo-shot">Shot</span></h1>
 <button id="pickBtn" class="btn-primary">画像を選ぶ</button>
 <input type="file" id="fileInput" accept="image/*" hidden>
-<small class="app-version">Version 3</small>
+<small class="app-version">Version 4.0</small>
 </div>
 <div id="workspace" class="workspace hidden">
 <div class="canvas-wrap"><canvas id="previewCanvas"></canvas><div class="cut-overlay" id="cutOverlay"></div></div>
@@ -164,7 +165,7 @@ img.onload=()=>{
 let w=img.naturalWidth,h=img.naturalHeight,scale=Math.min(1,MAX_DIM/Math.max(w,h));
 w=Math.round(w*scale);h=Math.round(h*scale);
 const src=document.createElement("canvas");src.width=w;src.height=h;src.getContext("2d").drawImage(img,0,0,w,h);
-state.srcCanvas=src;state.w=w;state.h=h;state.split=null;previewCanvas.width=w;previewCanvas.height=h;renderPreview();
+state.srcCanvas=src;state.w=w;state.h=h;state.split=null;previewCanvas.width=w;previewCanvas.height=h;renderPreview();el("stage").classList.add("has-image");
 el("emptyState").classList.add("hidden");el("workspace").classList.remove("hidden");el("footer").classList.remove("hidden");
 buildPresetChips();buildSplitOptions();showFooter("suggest");el("tilesStrip").classList.add("hidden");clearOverlay();
 };img.src=dataUrl;
